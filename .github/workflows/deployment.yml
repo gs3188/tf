@@ -1,14 +1,14 @@
 name: Terraform Infrastructure Deployment
 
 on:
-  push:
-    branches:
-      - master
-    paths:
-      - 'network/**'
-      - 'shared/**'
-      - 'application/**'
-      - '.github/workflows/deployment.yml'
+#   push:
+#     branches:
+#       - master
+#     paths:
+#       - 'network/**'
+#       - 'shared/**'
+#       - 'application/**'
+#       - '.github/workflows/deployment.yml'
   pull_request:
     paths:
       - 'network/**'
