@@ -1,0 +1,146 @@
+name: Terraform Infrastructure Deployment
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'network/**'
+      - 'shared/**'
+      - 'application/**'
+      - '.github/workflows/deployment.yml'
+  pull_request:
+    paths:
+      - 'network/**'
+      - 'shared/**'
+      - 'application/**'
+      - '.github/workflows/deployment.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - prod
+      layer:
+        description: 'Infrastructure layer to deploy'
+        required: true
+        type: choice
+        options:
+          - network
+          - shared
+          - application
+          - all
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  # Reusable job template for terraform operations
+  terraform:
+    name: 'Deploy ${{ matrix.layer }}'
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+    strategy:
+      matrix:
+        layer: ${{ fromJSON(needs.setup.outputs.layers) }}
+      max-parallel: 1  # Run layers sequentially
+    needs: setup
+
+    defaults:
+      run:
+        working-directory: ./${{ matrix.layer }}
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: "1.5.0"
+
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Terraform Format
+      run: terraform fmt -check
+      continue-on-error: true
+
+    - name: Terraform Init
+      run: terraform init
+
+    - name: Terraform Validate
+      run: terraform validate
+
+    - name: Terraform Plan
+      run: |
+        terraform plan \
+          -var-file="config/${{ github.event.inputs.environment || 'dev' }}.tfvars" \
+          -out=tfplan
+      
+    - name: Terraform Show
+      run: terraform show -no-color tfplan > tfplan.txt
+
+    - name: Add Plan to PR
+      uses: actions/github-script@v6
+      if: github.event_name == 'pull_request'
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const fs = require('fs');
+          const plan = fs.readFileSync('${{ matrix.layer }}/tfplan.txt', 'utf8');
+          const comment = `#### Terraform Plan 📝\`${{ matrix.layer }}\`
+          
+          <details><summary>Show Plan</summary>
+          
+          \`\`\`\n
+          ${plan}
+          \`\`\`
+          
+          </details>`;
+          
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+            body: comment
+          })
+
+    - name: Terraform Apply
+      if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
+      run: terraform apply -auto-approve tfplan
+
+  # Setup job to determine which layers to deploy
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      layers: ${{ steps.set-layers.outputs.layers }}
+    steps:
+      - name: Determine layers to deploy
+        id: set-layers
+        run: |
+          if [ "${{ github.event.inputs.layer }}" = "all" ] || [ "${{ github.event.inputs.layer }}" = "" ]; then
+            echo "layers=['network','shared','application']" >> $GITHUB_OUTPUT
+          else
+            echo "layers=['${{ github.event.inputs.layer }}']" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+
+  # Summary job to report deployment status
+  summary:
+    needs: [terraform]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Deployment Summary
+        run: |
+          echo "### Deployment Summary 📊" >> $GITHUB_STEP_SUMMARY
+          echo "Environment: ${{ github.event.inputs.environment || 'dev' }}" >> $GITHUB_STEP_SUMMARY
+          echo "Status: ${{ needs.terraform.result }}" >> $GITHUB_STEP_SUMMARY
