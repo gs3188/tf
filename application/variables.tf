@@ -98,6 +98,19 @@ variable "docker_bridge_cidr" {
 }
 
 # RBAC Variables
+
+# NGINX Ingress Variables
+variable "nginx_ingress_version" {
+  description = "Version of NGINX Ingress Controller Helm chart"
+  type        = string
+  default     = "4.7.1"
+}
+
+variable "nginx_replicas" {
+  description = "Number of NGINX Ingress Controller replicas"
+  type        = number
+  default     = 2
+}
 variable "admin_group_object_ids" {
   description = "List of Azure AD group object IDs for cluster admin access"
   type        = list(string)

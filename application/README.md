@@ -9,12 +9,14 @@ This layer contains application-specific infrastructure including AKS and suppor
 - Log Analytics Workspace
 - Private Endpoints
 - Resource Group
+- NGINX Ingress Controller
 
 ## Folder Structure
 ```
 application/
 ├── _aks.tf            # AKS cluster configuration
 ├── _app-service.tf    # App service configuration
+├── _ngingx.tf        # NGINX Ingress Controller configuration
 ├── main.tf           # Main configuration
 ├── naming.tf         # Naming conventions
 ├── providers.tf      # Provider configuration
@@ -44,6 +46,17 @@ application/
 - Microsoft Defender
 - Private endpoints
 
+### NGINX Ingress Controller
+
+The NGINX Ingress Controller is deployed with the following features:
+- Internal Load Balancer configuration
+- Automatic SSL/TLS configuration
+- Metrics enabled for monitoring
+- Resource requests and limits
+- Health probe configuration
+- DNS label configuration
+- Diagnostic settings
+
 ### Required Variables
 
 ```hcl
@@ -55,6 +68,10 @@ kubernetes_version    = "1.26.3"
 system_node_vm_size  = "Standard_D4s_v3"
 user_node_vm_size    = "Standard_D8s_v3"
 admin_group_object_ids = ["group-id"]
+
+# NGINX Ingress
+nginx_ingress_version = "4.7.1"
+nginx_replicas        = 2
 
 # Network
 service_cidr        = "10.0.0.0/16"
